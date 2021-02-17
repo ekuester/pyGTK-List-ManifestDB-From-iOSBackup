@@ -1,0 +1,14 @@
+          See what is covered under the hood of IOS
+Program for parsing the Backup files of IOS for iPad and iPhone, generated
+           by iTunes versions higher than 12.5 or so
+    ( older versions are using a different method for the backup ).
+The main information is stored in a SQLite database named Manifest.db .
+
+         Use the program for extracting of backup'd files
+             which could not be retrieved otherwise.
+
+ Developed 2016 in Swift (now abandoned) then rewritten July 25, 2018
+      in C++ with the GTK+ wrapper gtkmm, at last January 2021
+        anew rewritten in pyGTK to use modules like plistlib
+
+      Copyright © 2016-2021 Erich Küster. All rights reserved.
