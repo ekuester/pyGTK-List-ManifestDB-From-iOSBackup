@@ -138,7 +138,7 @@ class ManifestDBWindow(Gtk.Window):
         combo_entry = self.combo.get_child()
         # handles Enter pressed
         combo_entry.connect("activate", self.on_entry_activate)
-        combo_entry.set_placeholder_text("Please select domain to display")
+        combo_entry.set_text("Please select domain to display")
         # button extract domain
         domain_button = Gtk.Button.new_with_label("Extract Domain...")
         domain_button.set_tooltip_text("Extract domain content");
@@ -298,8 +298,7 @@ class ManifestDBWindow(Gtk.Window):
     def on_open_clicked(self, open_button):
         if (self.first_run is False):
             self.context_id = self.status_bar.push(self.context_id,\
-                "Start program anew to open a new Database")
-            return
+                "Go on to open a new Database")
         backup_url = self.choose_database_file()
         if (backup_url is None):
             self.context_id = self.status_bar.push(self.context_id,\
@@ -322,13 +321,6 @@ class ManifestDBWindow(Gtk.Window):
             self.names = list(zip(*cursor.description))
             # truncate list to first tuple
             del self.names[1:]
-            #file_blob = record[4]
-            # decode binary plist
-            #blob_plist = _plistlib.loads(file_blob)
-            #print(f'rows: {len(record)} record is: {type(record)} record contains blob_plist: {blob_plist}')
-            # check if columns match what we expect
-            #colnames = list(zip(*cursor.description))[0]
-            #print (colnames)
             cursor.close()
 
         except sqlite3.Error as error:
@@ -341,10 +333,15 @@ class ManifestDBWindow(Gtk.Window):
                     "The SQLite connection is closed after reading")
 
         listmodel = self.combo.get_model()
+        treemodel = self.treeview.get_model()
         if (len(self.naked_domains)):
             del self.naked_domains[:]
-            # clear listmodel
+            # clear entry and models
+            self.combo.set_active(-1)
+            entry = self.combo.get_child()
+            entry.set_text("Please select domain to display")
             listmodel.clear()
+            treemodel.clear()
         # filter out "naked" domains where relativePath is empty
         for record in self.records:
             path = record[2]
@@ -360,19 +357,18 @@ class ManifestDBWindow(Gtk.Window):
         self.context_id = self.status_bar.push(self.context_id,\
             f'Combobox filled with {index} domain names, please select one')
 
-        self.scrolled_window.add(self.treeview)
-        self.scrolled_window.show()
-
         self.remove(self.vbox)
 
         if (self.first_run):
+            # prepare scrolled window
+            self.scrolled_window.add(self.treeview)
+            self.scrolled_window.show()
             # add new widgets and reorder
             self.vbox.remove(self.label_box)
             # add horizontal combobox
             self.vbox.pack_start(self.domain_box, False, False, 0);
             self.vbox.pack_start(self.scrolled_window, False, True, 0)
             self.vbox.pack_start(self.label_box, True, True, 0)
-
             # generate horizontal box at bottom for manifest, status, export
             self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
             if (self.manifest is not None):
@@ -394,6 +390,7 @@ class ManifestDBWindow(Gtk.Window):
             self.bottom_box.pack_end(export_button, True, True, 0)
             self.vbox.pack_start(self.bottom_box, False, True, 0)
             self.first_run = False
+            
         self.add(self.vbox)
         self.show_all()
 
@@ -405,7 +402,7 @@ class ManifestDBWindow(Gtk.Window):
         about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
         about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
         about.set_size_request(480, -1)
-        about.set_version("Version 1.1.7")
+        about.set_version("Version 1.1.8")
         about.set_authors("Erich Küster, Krefeld/Germany\n")
         about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
         with open("COMMENTS","r") as f:
@@ -561,8 +558,7 @@ class ManifestDBWindow(Gtk.Window):
                         f'Copying to {target_url} complete, no errors')
             else:
                 self.context_id = self.status_bar.push(self.context_id,\
-                    f'Saving rejected (wrong file type)")
-
+                    f'Saving rejected (wrong file type)')
 
     def on_manifest_show_clicked(self, button, *header):
         buffer = []
