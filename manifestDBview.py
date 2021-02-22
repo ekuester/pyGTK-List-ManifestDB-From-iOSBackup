@@ -2,9 +2,9 @@
 # see https://python-gtk-3-tutorial.readthedocs.io/en/latest/
 #  List ManifestDB
 #  See what is covered under the hood of IOS
-
-#  File: manifestDBwindow.py
-
+#
+#  File: manifestDBview.py
+#
 #  Program for parsing the Backup files of IOS for iPad and iPhone, generated
 #    by iTunes versions higher than 12.5 or so ( older versions are using a
 #    different method for a backup ).
@@ -30,11 +30,15 @@
 #         Copyright © 2016-2021 Erich Küster. All rights reserved.
 
 import csv, os, re, sqlite3, sys
+import gettext
+_ = gettext.gettext
+
 import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GdkPixbuf, Gio
 import plistlib as _plistlib
 from datetime import datetime
+from inspect import currentframe
 
 svg = """
 <svg id="svg154" width="256" height="256" version="1.1" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -62,6 +66,13 @@ svg = """
  <text id="text1192" x="87.968163" y="180.4267" fill="url(#linearGradient862)" font-family="sans-serif" font-size="42.667px" style="line-height:1.25;mix-blend-mode:normal" xml:space="preserve"><tspan id="tspan1190" x="87.968163" y="180.4267" fill="url(#linearGradient862)" font-family="'Noto Sans'" font-size="42.667px">Backup</tspan></text>
  <path id="path849" transform="matrix(2 0 0 2 .14531 .14531)" d="m117.14 6.8613c1.8003 2.5889 2.8613 5.7328 2.8613 9.1387v88c0 8.864-7.136 16-16 16h-88c-3.4059 0-6.5498-1.061-9.1387-2.8613 2.8851 4.1488 7.6806 6.8613 13.139 6.8613h88c8.864 0 16-7.136 16-16v-88c0-5.4581-2.7126-10.254-6.8613-13.139z" filter="url(#filter854)" opacity=".36"/>
 </svg>"""
+
+##############################
+# use f-strings with gettext #
+##############################
+def  f(s):
+    frame = currentframe().f_back
+    return eval(f"f'{s}'", frame.f_locals, frame.f_globals)
 
 ###########
 # classes #
@@ -138,10 +149,10 @@ class ManifestDBWindow(Gtk.Window):
         combo_entry = self.combo.get_child()
         # handles Enter pressed
         combo_entry.connect("activate", self.on_entry_activate)
-        combo_entry.set_text("Please select domain to display")
+        combo_entry.set_text(_("Please select domain to display"))
         # button extract domain
-        domain_button = Gtk.Button.new_with_label("Extract Domain...")
-        domain_button.set_tooltip_text("Extract domain content");
+        domain_button = Gtk.Button.new_with_label(_("Extract Domain..."))
+        domain_button.set_tooltip_text(_("Extract domain content"))
         # label is shown
         domain_button.show()
         # set the name of the action associated with the button.
@@ -193,7 +204,7 @@ class ManifestDBWindow(Gtk.Window):
         self.status_bar = Gtk.Statusbar()
         self.status_frame.add(self.status_bar)
         self.vbox.pack_end(self.status_frame, False, True, 0)
-        self.context_id = self.status_bar.push(0, "Choose a Database, click Open")
+        self.context_id = self.status_bar.push(0, _("Choose a Database, click Open"))
 
         self.add(self.vbox)
         self.show_all()
@@ -207,8 +218,8 @@ class ManifestDBWindow(Gtk.Window):
         # toolbar.set_toolbar_style(Gtk.TOOLBAR_BOTH);
         # create a button for the "open" action, with a stock image
         openIcon = Gtk.Image.new_from_icon_name("document-open", Gtk.IconSize.LARGE_TOOLBAR)
-        open_button = Gtk.ToolButton.new(openIcon, "Open")
-        open_button.set_tooltip_text("Open data base");
+        open_button = Gtk.ToolButton.new(openIcon, _("Open"))
+        open_button.set_tooltip_text(_("Open data base"))
         # label is shown
         open_button.set_is_important(True)
         toolbar.insert(open_button, 1)
@@ -218,8 +229,8 @@ class ManifestDBWindow(Gtk.Window):
 
         # create a button for the "quit" action, with a stock image
         quitIcon = Gtk.Image.new_from_icon_name("application-exit", Gtk.IconSize.LARGE_TOOLBAR)
-        quit_button = Gtk.ToolButton.new(quitIcon, "Quit")
-        quit_button.set_tooltip_text("Exit program");
+        quit_button = Gtk.ToolButton.new(quitIcon, _("Quit"))
+        quit_button.set_tooltip_text(_("Exit program"))
         # label is shown
         quit_button.set_is_important(True)
         toolbar.insert(quit_button, 2)
@@ -234,8 +245,8 @@ class ManifestDBWindow(Gtk.Window):
 
         # create a button for the "about" action, with a stock image
         aboutIcon = Gtk.Image.new_from_icon_name("help-about", Gtk.IconSize.LARGE_TOOLBAR)
-        about_button = Gtk.ToolButton.new(aboutIcon, "About")
-        about_button.set_tooltip_text("About program");
+        about_button = Gtk.ToolButton.new(aboutIcon, _("About"))
+        about_button.set_tooltip_text(_("About program"))
         # label is shown
         about_button.set_is_important(True)
         toolbar.insert(about_button, 4)
@@ -248,23 +259,23 @@ class ManifestDBWindow(Gtk.Window):
 
     def add_filters(self, dialog):
         filter_db = Gtk.FileFilter()
-        filter_db.set_name("Database files")
+        filter_db.set_name(_("Database files"))
         filter_db.add_mime_type("application/vnd.sqlite3")
         dialog.add_filter(filter_db)
 
         filter_text = Gtk.FileFilter()
-        filter_text.set_name("Text files")
+        filter_text.set_name(_("Text files"))
         filter_text.add_mime_type("text/plain")
         dialog.add_filter(filter_text)
 
         filter_any = Gtk.FileFilter()
-        filter_any.set_name("Any files")
+        filter_any.set_name(_("Any files"))
         filter_any.add_pattern("*")
         dialog.add_filter(filter_any)
 
     def choose_database_file(self):
         dialog = Gtk.FileChooserDialog(
-            title="Select Manifest.db file", parent=self, action=Gtk.FileChooserAction.OPEN
+            title=_("Select Manifest.db file"), parent=self, action=Gtk.FileChooserAction.OPEN
         )
         dialog.add_buttons(
             Gtk.STOCK_CANCEL,
@@ -298,11 +309,11 @@ class ManifestDBWindow(Gtk.Window):
     def on_open_clicked(self, open_button):
         if (self.first_run is False):
             self.context_id = self.status_bar.push(self.context_id,\
-                "Go on to open a new Database")
+                _("Go on to open a new Database"))
         backup_url = self.choose_database_file()
         if (backup_url is None):
             self.context_id = self.status_bar.push(self.context_id,\
-                "No Database chosen, try again")
+                _("No Database chosen, try again"))
             return
         self.backup_path = os.path.dirname(backup_url)
         manifest_file = os.path.join(self.backup_path,'Manifest.plist')
@@ -313,7 +324,7 @@ class ManifestDBWindow(Gtk.Window):
             sqliteConnection = sqlite3.connect(backup_url)
             cursor = sqliteConnection.cursor()
             self.context_id = self.status_bar.push(self.context_id,\
-                "Database created and successfully connected to SQLite")
+                _("Database created and successfully connected to SQLite"))
             query = "SELECT * FROM Files"
             cursor.execute(query)
             self.records = cursor.fetchall()
@@ -325,12 +336,12 @@ class ManifestDBWindow(Gtk.Window):
 
         except sqlite3.Error as error:
             self.context_id = self.status_bar.push(self.context_id,\
-                "Error while connecting to sqlite")
+                _("Error while connecting to sqlite"))
         finally:
             if (sqliteConnection):
                 sqliteConnection.close()
                 self.context_id = self.status_bar.push(self.context_id,\
-                    "The SQLite connection is closed after reading")
+                    _("The SQLite connection is closed after reading"))
 
         listmodel = self.combo.get_model()
         treemodel = self.treeview.get_model()
@@ -339,7 +350,7 @@ class ManifestDBWindow(Gtk.Window):
             # clear entry and models
             self.combo.set_active(-1)
             entry = self.combo.get_child()
-            entry.set_text("Please select domain to display")
+            entry.set_text(_("Please select domain to display"))
             listmodel.clear()
             treemodel.clear()
         # filter out "naked" domains where relativePath is empty
@@ -355,7 +366,7 @@ class ManifestDBWindow(Gtk.Window):
             index += 1
             listmodel.append([naked_domain, index])
         self.context_id = self.status_bar.push(self.context_id,\
-            f'Combobox filled with {index} domain names, please select one')
+            f(_('Combobox filled with {index} domain names, please select one')))
 
         self.remove(self.vbox)
 
@@ -382,7 +393,7 @@ class ManifestDBWindow(Gtk.Window):
                 status_button.connect("clicked", self.on_status_show_clicked, True)
                 status_button.show()
                 self.bottom_box.pack_start(status_button, True, False, 0)
-            export_button = Gtk.Button.new_with_label("Export CSV...")
+            export_button = Gtk.Button.new_with_label(_("Export CSV..."))
             export_button.connect("clicked", self.on_export_csv_clicked)
             export_button.show()
             self.bottom_box.pack_end(export_button, False, True, 0)
@@ -402,8 +413,8 @@ class ManifestDBWindow(Gtk.Window):
         about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
         about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
         about.set_size_request(480, -1)
-        about.set_version("Version 1.1.8")
-        about.set_authors("Erich Küster, Krefeld/Germany\n")
+        about.set_version("Version 1.1.9")
+        about.set_authors(_("Erich Küster, Krefeld/Germany\n"))
         about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
         with open("COMMENTS","r") as f:
             comments = f.read()
@@ -412,11 +423,11 @@ class ManifestDBWindow(Gtk.Window):
             license = f.read()
         about.set_license(license)
         about.set_website("http://www.gtkmm.org");
-        about.set_website_label("gtkmm Website - C++ Interfaces for GTK+ and GNOME");
-        about.set_authors(["Erich Küster, Krefeld/Germany"]);
+        about.set_website_label("gtkmm Website - C++ Interfaces for GTK+ and GNOME")
+        about.set_authors([_("Erich Küster, Krefeld/Germany")]);
         response = about.run()
         if response != Gtk.ResponseType.DELETE_EVENT:
-            print("Unknown button was clicked")
+            print(_("Unknown button was clicked"))
         about.destroy()
 
     def on_combo_changed(self, combo):
@@ -446,7 +457,7 @@ class ManifestDBWindow(Gtk.Window):
                         # do not append file BLOB
                         treemodel.append(selected_items[0:3])
                 self.context_id = self.status_bar.push(self.context_id,\
-                    f'Chosen domain: {domain}')
+                    f(_('Chosen domain: {domain}')))
                 self.vbox.pack_start(self.scrolled_window, False, True, 0)
                 ''' self.vbox.pack_end(self.text_window) '''
                 self.vbox.pack_start(self.label_box, True, True, 0)
@@ -460,7 +471,7 @@ class ManifestDBWindow(Gtk.Window):
     def on_entry_activate(self, entry):
         # on 'Enter' look for first row with domain containing the actual entry text
         self.context_id = self.status_bar.push(self.context_id,\
-            "no match found for entry")
+            _("no match found for entry"))
         search_term = entry.get_text()
         model = self.combo.get_model()
         first_match = 0
@@ -473,14 +484,14 @@ class ManifestDBWindow(Gtk.Window):
                 self.combo.set_active(row_id-1)
                 entry.set_text(naked_domain)
                 self.context_id = self.status_bar.push(self.context_id,\
-                    f'first match for entry is {naked_domain} at row {row_id}')
+                    f(_('first match for entry is {naked_domain} at row {row_id}')))
                 break
 
     def show_info_dialog(self, buffer):
         lines = tuple(buffer)
         report = "\n"
         dialog = InfoDialog(self)
-        dialog.set_title("File Info Dialog")
+        dialog.set_title(_("File Info Dialog"))
         markup = report.join(lines)
         self.dialog_label.set_markup(markup)
         response = dialog.run()
@@ -491,7 +502,7 @@ class ManifestDBWindow(Gtk.Window):
             text = re.sub('<[^<]+?>', '', markup)
             self.clipboard.set_text(text, -1)
             self.context_id = self.status_bar.push(self.context_id,\
-                f'File Info copied to Clipboard, Strg-V to retrieve.')
+                _("File Info copied to Clipboard, use Strg-V to retrieve."))
 
     def on_row_activated(self, treeview, path, column):
         model = self.treeview.get_model()
@@ -534,12 +545,12 @@ class ManifestDBWindow(Gtk.Window):
                 file_hash = file_id[0:2]
                 file_url = os.path.join(self.backup_path, file_hash, file_id)
                 self.context_id = self.status_bar.push(self.context_id,\
-                    f"URL for backup'd file: {file_url}")
+                    f(_("URL for backup'd file: {file_url}")))
                 target_path = self.choose_folder_for_saving(\
-                    "Please choose a folder to copy file in")
+                    _("Please choose a folder to copy file in"))
                 if (target_path is None):
                     self.context_id = self.status_bar.push(self.context_id,\
-                        "No path for target file given, try again")
+                        _("No path for target file given, try again"))
                     return
                 target_url = os.path.join(target_path,target)
                 try:
@@ -552,13 +563,13 @@ class ManifestDBWindow(Gtk.Window):
                                 break
                 except EnvironmentError:
                     self.context_id = self.status_bar.push(self.context_id,\
-                        f'Error during copying, good luck!')
+                        _('Error during copying, good luck!'))
                 finally:
                     self.context_id = self.status_bar.push(self.context_id,\
-                        f'Copying to {target_url} complete, no errors')
+                        f(_('Copying to {target_url} complete, no errors')))
             else:
                 self.context_id = self.status_bar.push(self.context_id,\
-                    f'Saving rejected (wrong file type)')
+                    f(_('Saving rejected (wrong file type)')))
 
     def on_manifest_show_clicked(self, button, *header):
         buffer = []
@@ -595,24 +606,31 @@ class ManifestDBWindow(Gtk.Window):
         model = self.treeview.get_model()
         if len(model) == 0:
             self.context_id = self.status_bar.push(self.context_id,\
-                f'Select domain first (no rows in model)')
+                _('Select domain first (no rows in model)'))
             return
-        extract_path = self.choose_folder_for_saving("Please choose a folder for extracting files")
+        extract_path = self.choose_folder_for_saving(_("Please choose a folder for extracting files"))
         if (extract_path is None):
             self.context_id = self.status_bar.push(self.context_id,\
-                f'No path for extracting files given, try again')
+                _('No path for extracting files given, try again'))
             return
         elif len(os.listdir(extract_path)) != 0:
             self.context_id = self.status_bar.push(self.context_id,\
-                f'Output directory is not empty!')
+                _('Output directory is not empty!'))
             return
+        # now we have a valid extract path
+        self.context_id = self.status_bar.push(self.context_id,\
+            f(_('Path to extract files: {extract_path}')))
         names = ['fileID', 'relativePath', 'flags']
         columns = dict()
+        files = 0
         for row in model:
             for index, column in enumerate(row):
                 columns[names[index]] = column
-            if columns['flags'] == 1:
+            if columns['flags'] != 1:
+                continue
+            else:
                 # we have a regular file, get first two characters of file ID
+                files += 1
                 file_id = columns['fileID']
                 file_hash = file_id[0:2]
                 file_url = os.path.join(self.backup_path, file_hash, file_id)
@@ -629,13 +647,17 @@ class ManifestDBWindow(Gtk.Window):
                                 break
                 except EnvironmentError:
                     self.context_id = self.status_bar.push(self.context_id,\
-                        f"An error occurred while copying")
+                        _("An error occurred while copying"))
                 finally:
                     self.context_id = self.status_bar.push(self.context_id,\
-                        f'Copying ...')
-        # build path
-        self.context_id = self.status_bar.push(self.context_id,\
-            f'Path for extracted files: {extract_path}')
+                        _('Copying ...'))
+        if files > 0:
+            self.context_id = self.status_bar.push(self.context_id,\
+               f(_('{files} files extracted to: {extract_path}')))
+        else:
+            self.context_id = self.status_bar.push(self.context_id,\
+               _('Nothing extracted (no regular files in domain)'))
+
 
     def choose_folder_for_saving(self, dialog_title):
         dialog = Gtk.FileChooserDialog(
@@ -657,10 +679,10 @@ class ManifestDBWindow(Gtk.Window):
 
     def on_export_csv_clicked(self, widget):
         # export data records into .csv file
-        export_path = self.choose_folder_for_saving("Please choose a folder for exporting Manifest.csv")
+        export_path = self.choose_folder_for_saving(_("Please choose a folder for exporting Manifest.csv"))
         if (export_path is None):
             self.context_id = self.status_bar.push(self.context_id,\
-                "No path for CSV file given, try again")
+                _("No path for CSV file given, try again"))
             return
         export_url = os.path.join(export_path,'Manifest.csv')
         with open(export_url, 'w') as f:
@@ -670,11 +692,16 @@ class ManifestDBWindow(Gtk.Window):
             for record in self.records:
                 csv_writer.writerow(record)
             self.context_id = self.status_bar.push(self.context_id,\
-                f'Manifest.csv stored in folder {export_path}')
+                f(_('Manifest.csv stored in folder {export_path}')))
 
     def on_destroy(self, widget):
         Gtk.main_quit()
 
+# available translations
+de = gettext.translation('ManifestDBView', localedir='locale', languages=['de'])
+de.install()
+# define _ shortcut for translations
+_ = de.gettext # German
 win = ManifestDBWindow()
 win.connect("destroy", Gtk.main_quit)
 win.show_all()
