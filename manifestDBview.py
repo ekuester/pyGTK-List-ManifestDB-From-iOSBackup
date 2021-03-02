@@ -18,10 +18,10 @@
 #     userdirectory /Usxtra window many texters/kuestere/ (depending of registered user),
 #     default subdirectory then is Library/Application\ Support/MobileSync/Backup,
 #     the SQLite database is found in a subdirectory of that.
-
+#
 #  Use the program for extracting of stored files which could not be recovered otherwise.
 #           Created by Erich Küster first on October 3, 2016
-
+#
 #  Access to SQLite under C++ was realized analogous to the first answer given at
 #  <http://stackoverflow.com/questions/24102775/accessing-an-sqlite-database-in-swift>
 #  The old code (in Swift, now abandoned) was rewritten as of July 25, 2018
@@ -29,16 +29,18 @@
 #       to use plistlib rewritten for GTK3 Python on February 8, 2021
 #         Copyright © 2016-2021 Erich Küster. All rights reserved.
 
-import csv, os, re, sqlite3, sys
+import csv, os, queue, re, sqlite3, sys, threading
+
 import gettext
 _ = gettext.gettext
 
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gdk, GdkPixbuf, Gio
+from gi.repository import Gtk, Gdk, GdkPixbuf, Gio, GLib, GObject
 import plistlib as _plistlib
 from datetime import datetime
 from inspect import currentframe
+from time import sleep
 
 svg = """
 <svg id="svg154" width="256" height="256" version="1.1" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -82,18 +84,98 @@ class InfoDialog(Gtk.Dialog):
         Gtk.Dialog.__init__(self, transient_for=parent, flags=0)
         self.move(272, 64)
         self.add_buttons(
-            'Copy', 100, Gtk.STOCK_CLOSE, Gtk.ResponseType.OK
+            'Copy', 100, Gtk.STOCK_CLOSE, Gtk.ResponseType.CLOSE
         )
         self.set_default_size(160, 96)
         self.set_default_response(100)
         self.set_border_width(8)
+
         label = parent.dialog_label
         label.set_margin_top(32)
         label.set_margin_bottom(32)
         box = self.get_content_area()
         box.add(label)
-
         self.show_all()
+
+class ProgressThread(threading.Thread):
+    def __init__(self, queue, files, extract_path):
+        threading.Thread.__init__(self)
+        self._extract_path = extract_path
+        self._files = files
+        self._queue = queue
+
+    def run(self):
+        subtotal = 0
+        for file in self._files:
+            file_url = file['fileURL']
+            target_url = os.path.join(self._extract_path, file['relativePath'])
+            target_dirs = os.path.dirname(target_url)
+            os.makedirs(target_dirs, exist_ok=True, mode=0o750)
+            try:
+                with open(file_url, 'rb') as fo, open(target_url, 'wb') as fw:
+                    while True:
+                        chunk = fo.read(1024)
+                        if chunk: 
+                            fw.write(chunk)
+                        else:
+                            break
+            except EnvironmentError:
+                # ERROR in thread, Status message so not possible !!!!
+                self.context_id = self.status_bar.push(self.context_id,\
+                    _("An error occurred while copying"))
+            finally:
+                subtotal += file['fileSize']
+                self._queue.put(subtotal)
+
+class ProgressbarDialog(Gtk.Dialog):
+    def __init__(self, parent):
+        Gtk.Dialog.__init__(self, title=_("Filetransfer"), transient_for=parent, flags=0)  
+        self.move(272, 64)
+        self.set_modal(True)
+
+        self.add_button(Gtk.STOCK_CLOSE, Gtk.ResponseType.CLOSE)
+        self.set_default_size(216, 64)
+        self.set_border_width(8)
+        self.connect("response", self._on_response)
+
+        label = Gtk.Label(label=_("Copying Files ..."))
+        self.progressbar = Gtk.ProgressBar(show_text=True)
+
+        box = self.get_content_area()
+        box.add(label)
+        box.add(self.progressbar)
+        self.show_all()
+
+        # max and current number of bytes copied
+        self.total = parent.total
+
+        # queue to share data between threads
+        self._queue = queue.Queue()
+
+        # install timer event to check the queue every 200 msec for new data from the thread
+        GLib.timeout_add(interval=200, function=self._on_timer)
+        # start the thread
+        self._thread = ProgressThread(self._queue, parent.files, parent.extract_path)
+        self._thread.daemon = True
+        self._thread.start()
+
+    def _on_timer(self):
+        # if the thread is dead and no more data available...
+        if not self._thread.is_alive() and self._queue.empty():
+            # ...end the timer
+            return False
+        # if data available
+        while not self._queue.empty():
+            # read data from the thread
+            subtotal = self._queue.get()
+            # update the progressbar
+            self.progressbar.set_fraction(subtotal / self.total)
+        # keep the timer alive
+        return True
+
+    def _on_response(self, dialog, response_id):
+        print("response_id is", response_id)
+        dialog.destroy()
 
 class ManifestDBWindow(Gtk.Window):
     def __init__(self):
@@ -120,7 +202,8 @@ class ManifestDBWindow(Gtk.Window):
         # add the toolbar to the vertical box
         self.vbox.pack_start(toolbar, False, True, 0)
 
-        label = Gtk.Label(label="iOSBackup")
+        label = Gtk.Label()
+        label.set_markup("<span face=\"mono\" weight=\"bold\">iOSBackup </span>")
         self.label_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.label_box.pack_start(label, True, True, 0)
         self.vbox.pack_start(self.label_box, True, True, 0)
@@ -146,10 +229,10 @@ class ManifestDBWindow(Gtk.Window):
         self.combo.set_active(-1)
         self.combo.connect("changed", self.on_combo_changed)
         self.combo.set_entry_text_column(0)
-        combo_entry = self.combo.get_child()
+        entry = self.combo.get_child()
         # handles Enter pressed
-        combo_entry.connect("activate", self.on_entry_activate)
-        combo_entry.set_text(_("Please select domain to display"))
+        entry.connect("activate", self.on_entry_activate)
+        entry.set_placeholder_text(_("Please select domain to display"))
         # button extract domain
         domain_button = Gtk.Button.new_with_label(_("Extract Domain..."))
         domain_button.set_tooltip_text(_("Extract domain content"))
@@ -209,7 +292,7 @@ class ManifestDBWindow(Gtk.Window):
         self.add(self.vbox)
         self.show_all()
 
-    # a method to create the toolbar
+    # method to create the toolbar
     def create_toolbar(self):
         # a toolbar
         toolbar = Gtk.Toolbar()
@@ -350,7 +433,8 @@ class ManifestDBWindow(Gtk.Window):
             # clear entry and models
             self.combo.set_active(-1)
             entry = self.combo.get_child()
-            entry.set_text(_("Please select domain to display"))
+            entry.set_text(str())
+            entry.set_placeholder_text(_("Please select domain to display"))
             listmodel.clear()
             treemodel.clear()
         # filter out "naked" domains where relativePath is empty
@@ -413,7 +497,7 @@ class ManifestDBWindow(Gtk.Window):
         about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
         about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
         about.set_size_request(480, -1)
-        about.set_version("Version 1.1.9")
+        about.set_version("Version 1.1.10")
         about.set_authors(_("Erich Küster, Krefeld/Germany\n"))
         about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
         with open("COMMENTS","r") as f:
@@ -556,9 +640,9 @@ class ManifestDBWindow(Gtk.Window):
                 try:
                     with open(file_url, 'rb') as fo, open(target_url, 'wb') as fw:
                         while True:
-                            piece = fo.read(1024)
-                            if piece: 
-                                fw.write(piece)
+                            chunk = fo.read(1024)
+                            if chunk: 
+                                fw.write(chunk)
                             else:
                                 break
                 except EnvironmentError:
@@ -608,56 +692,48 @@ class ManifestDBWindow(Gtk.Window):
             self.context_id = self.status_bar.push(self.context_id,\
                 _('Select domain first (no rows in model)'))
             return
-        extract_path = self.choose_folder_for_saving(_("Please choose a folder for extracting files"))
-        if (extract_path is None):
+        self.extract_path = self.choose_folder_for_saving(_("Please choose a folder for extracting files"))
+        if (self.extract_path is None):
             self.context_id = self.status_bar.push(self.context_id,\
                 _('No path for extracting files given, try again'))
             return
-        elif len(os.listdir(extract_path)) != 0:
+        elif len(os.listdir(self.extract_path)) != 0:
             self.context_id = self.status_bar.push(self.context_id,\
                 _('Output directory is not empty!'))
             return
         # now we have a valid extract path
         self.context_id = self.status_bar.push(self.context_id,\
-            f(_('Path to extract files: {extract_path}')))
+            f(_('Path to extract files: {self.extract_path}')))
+        while Gtk.events_pending ():
+            Gtk.main_iteration ()
+        self.files = list()
         names = ['fileID', 'relativePath', 'flags']
-        columns = dict()
-        files = 0
+        self.total = 0
         for row in model:
+            columns = dict()
             for index, column in enumerate(row):
                 columns[names[index]] = column
             if columns['flags'] != 1:
                 continue
             else:
-                # we have a regular file, get first two characters of file ID
-                files += 1
+                # we have a regular file, add file_URL and file_size
                 file_id = columns['fileID']
+                # get first two characters of file ID
                 file_hash = file_id[0:2]
                 file_url = os.path.join(self.backup_path, file_hash, file_id)
-                target_url = os.path.join(extract_path,columns['relativePath'])
-                target_dirs = os.path.dirname(target_url)
-                os.makedirs(target_dirs, exist_ok=True, mode=0o750)
-                try:
-                    with open(file_url, 'rb') as fo, open(target_url, 'wb') as fw:
-                        while True:
-                            piece = fo.read(1024)
-                            if piece: 
-                                fw.write(piece)
-                            else:
-                                break
-                except EnvironmentError:
-                    self.context_id = self.status_bar.push(self.context_id,\
-                        _("An error occurred while copying"))
-                finally:
-                    self.context_id = self.status_bar.push(self.context_id,\
-                        _('Copying ...'))
-        if files > 0:
+                columns['fileURL'] = file_url
+                file_size = os.path.getsize(file_url)
+                self.total += file_size
+                columns['fileSize'] = file_size
+                self.files.append(columns)
+        if self.total > 0:
+            # generate progressbar dialog
+            progressbar_dialog = ProgressbarDialog(self)
             self.context_id = self.status_bar.push(self.context_id,\
-               f(_('{files} files extracted to: {extract_path}')))
+               f(_('{len(self.files)} files extracted to: {self.extract_path}')))
         else:
             self.context_id = self.status_bar.push(self.context_id,\
                _('Nothing extracted (no regular files in domain)'))
-
 
     def choose_folder_for_saving(self, dialog_title):
         dialog = Gtk.FileChooserDialog(
@@ -672,6 +748,7 @@ class ManifestDBWindow(Gtk.Window):
         # set default selection
         folder = None
         response = dialog.run()
+        dialog.hide()
         if response == Gtk.ResponseType.OK:
             folder = dialog.get_filename()
         dialog.destroy()

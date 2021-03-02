@@ -44,13 +44,13 @@ Use the program for extracting of backup'd files which could not be recovered ot
 - Normally exist in the same directory two files 'Manifest.plist' and 'Status.plist" which will be displayed by the related Buttons located left and in the middle, otherwise they are invisible.
 -  Choosing a domain from the appearing Combobox will display further components of this domain. Double-clicking a row in the table opens a dialog where you can select the place for storing the requested file.
 - If you know which domain you are looking for, enter in the entry field of the Combobox a significant segment for the name and press key 'Enter'. The first entry which will match is then selected. So typing in 'CameraRoll' will fetch the CameraRollDomain, where you find your stored images.
-- Clicking the "Extract Domain..." button will export the whole domain into a directory of your choice (but makes sense only if files are present, of course).
+- Clicking the "Extract Domain..." button will export the whole domain into a directory of your choice (but makes sense only if files are present, of course). The progress is shown in a dialog window with a progressbar.
 - Quit the program with "Quit" or by closing the application window.
 
 ### Acknowledgements:
 - David Blache for some fundamentals about iOSBackup and his idea to export a CSV file.</br>
 <https://www.quora.com/How-do-I-access-and-read-a-file-from-my-iPhone-backup-on-my-PC>
-- Marnix Kaart for an excellent python solution (some of his code influenced mine).</br>
+- Marnix Kaart for an excellent python solution (some of his code was very inspirational).</br>
 <https://github.com/mx-pycoder/pearback>
 - Special thanks go to the people in the developer community at StackOverflow. Without their help and answered questions at <https://stackoverflow.com/> and affiliate sites this work would not be possible.
 
