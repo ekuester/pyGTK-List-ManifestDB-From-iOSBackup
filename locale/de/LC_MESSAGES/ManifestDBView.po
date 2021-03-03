@@ -6,7 +6,7 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: PACKAGE VERSION\n"
-"POT-Creation-Date: 2021-03-02 17:53+0100\n"
+"POT-Creation-Date: 2021-03-03 22:31+0100\n"
 "PO-Revision-Date: 2021-02-21 22:50+0100\n"
 "Last-Translator: Erich Küster <erich.kuester@arcor.de>\n"
 "Language-Team: German <translation-team-de@lists.sourceforge.net>\n"
@@ -17,194 +17,190 @@ msgstr ""
 "Generated-By: pygettext.py 1.5\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-#: manifestDBview.py:125
-msgid "An error occurred while copying"
-msgstr "Fehler beim Kopieren"
+#: manifestDBview.py:125 manifestDBview.py:626
+msgid "An error occurred while copying, good luck!"
+msgstr "Fehler beim Kopieren, viel Glück!"
 
-#: manifestDBview.py:132
+#: manifestDBview.py:131
+msgid "{file_count} files extracted to: {self._extract_path}"
+msgstr "{file_count} Dateien extrahiert nach: {self._extract_path}"
+
+#: manifestDBview.py:136
 msgid "Filetransfer"
 msgstr "Dateitransfer"
 
-#: manifestDBview.py:141
+#: manifestDBview.py:143
 msgid "Copying Files ..."
 msgstr "Kopiere Dateien ..."
 
-#: manifestDBview.py:234 manifestDBview.py:436
+#: manifestDBview.py:225 manifestDBview.py:418
 msgid "Please select domain to display"
 msgstr "Domain zur Anzeige auswählen"
 
-#: manifestDBview.py:236
+#: manifestDBview.py:227
 msgid "Extract Domain..."
 msgstr "Domain extrahieren"
 
-#: manifestDBview.py:237
+#: manifestDBview.py:228
 msgid "Extract domain content"
 msgstr "Domaininhalt extrahieren"
 
-#: manifestDBview.py:289
+#: manifestDBview.py:279
 msgid "Choose a Database, click Open"
 msgstr "Klick auf Öffnen zur Auswahl einer Datenbank"
 
-#: manifestDBview.py:303
+#: manifestDBview.py:292
 msgid "Open"
 msgstr "Öffnen"
 
-#: manifestDBview.py:304
+#: manifestDBview.py:293
 msgid "Open data base"
 msgstr "Datenbank öffnen"
 
-#: manifestDBview.py:314
+#: manifestDBview.py:302
 msgid "Quit"
 msgstr "Verlassen"
 
-#: manifestDBview.py:315
+#: manifestDBview.py:303
 msgid "Exit program"
 msgstr "Programm schließen"
 
-#: manifestDBview.py:330
+#: manifestDBview.py:316
 msgid "About"
 msgstr "Über"
 
-#: manifestDBview.py:331
+#: manifestDBview.py:317
 msgid "About program"
 msgstr "Weitere Infos"
 
-#: manifestDBview.py:344
+#: manifestDBview.py:330
 msgid "Database files"
 msgstr "Datenbanken"
 
-#: manifestDBview.py:349
+#: manifestDBview.py:335
 msgid "Text files"
 msgstr "Textdateien"
 
-#: manifestDBview.py:354
+#: manifestDBview.py:340
 msgid "Any files"
 msgstr "Alle Dateien"
 
-#: manifestDBview.py:360
+#: manifestDBview.py:346
 msgid "Select Manifest.db file"
 msgstr "Datei Manifest.db auswählen"
 
-#: manifestDBview.py:394
+#: manifestDBview.py:378
 msgid "Go on to open a new Database"
 msgstr "Andere Datenbank jetzt öffnen"
 
-#: manifestDBview.py:398
+#: manifestDBview.py:382
 msgid "No Database chosen, try again"
-msgstr "Keine Datenbank ausgewählt, neuer Versuch"
+msgstr "Keine Datenbank ausgewählt, nochmals versuchen"
 
-#: manifestDBview.py:409
+#: manifestDBview.py:393
 msgid "Database created and successfully connected to SQLite"
 msgstr "Datenbank erstellt und erfolgreich mit SQLite verbunden"
 
-#: manifestDBview.py:421
+#: manifestDBview.py:404
 msgid "Error while connecting to sqlite"
 msgstr "Fehler beim Verbinden mit Sqlite"
 
-#: manifestDBview.py:426
+#: manifestDBview.py:409
 msgid "The SQLite connection is closed after reading"
 msgstr "Sqlite Verbindung nach Lesen geschlossen"
 
-#: manifestDBview.py:452
+#: manifestDBview.py:434
 msgid "Combobox filled with {index} domain names, please select one"
 msgstr "Combobox mit {index} Domainnamen, jetzt einen auswählen"
 
-#: manifestDBview.py:479
+#: manifestDBview.py:457
 msgid "Export CSV..."
 msgstr "CSV Export..."
 
-#: manifestDBview.py:500
+#: manifestDBview.py:477
 msgid "Erich Küster, Krefeld/Germany\n"
 msgstr "Erich Küster, Krefeld/Deutschland"
 
-#: manifestDBview.py:510
+#: manifestDBview.py:487
 msgid "Erich Küster, Krefeld/Germany"
 msgstr "Erich Küster, Krefeld/Deutschland"
 
-#: manifestDBview.py:513
+#: manifestDBview.py:490
 msgid "Unknown button was clicked"
 msgstr "Unbekannte Schaltfläche"
 
-#: manifestDBview.py:543
+#: manifestDBview.py:520
 msgid "Chosen domain: {domain}"
 msgstr "Ausgewählte Domain: {domain}"
 
-#: manifestDBview.py:557
+#: manifestDBview.py:534
 msgid "no match found for entry"
 msgstr "Kein Treffer für Eingabe"
 
-#: manifestDBview.py:570
+#: manifestDBview.py:547
 msgid "first match for entry is {naked_domain} at row {row_id}"
 msgstr "Erster Treffer für Eingabe: {naked_domain} in Zeile {row_id}"
 
-#: manifestDBview.py:577
+#: manifestDBview.py:554
 msgid "File Info Dialog"
 msgstr "Dateiinfo Dialog"
 
-#: manifestDBview.py:588
+#: manifestDBview.py:565
 msgid "File Info copied to Clipboard, use Strg-V to retrieve."
-msgstr "Dateiinfo kopiert in Zwischenablage, hole mit Strg-V"
+msgstr "Dateiinfo kopiert in Zwischenablage, holen mit Strg-V"
 
-#: manifestDBview.py:631
+#: manifestDBview.py:608
 msgid "URL for backup'd file: {file_url}"
 msgstr "URL für Dateibackup: {file_url}"
 
-#: manifestDBview.py:633
+#: manifestDBview.py:610
 msgid "Please choose a folder to copy file in"
 msgstr "Verzeichnis zum Kopieren auswählen"
 
-#: manifestDBview.py:636
+#: manifestDBview.py:613
 msgid "No path for target file given, try again"
 msgstr "Kein Pfad für Zieldatei gegeben, nochmals versuchen"
 
-#: manifestDBview.py:649
-msgid "Error during copying, good luck!"
-msgstr "Fehler beim Kopieren, viel Glück!"
-
-#: manifestDBview.py:652
+#: manifestDBview.py:629
 msgid "Copying to {target_url} complete, no errors"
 msgstr "Kopieren nach {target_url} vollständig, keine Fehler"
 
-#: manifestDBview.py:655
+#: manifestDBview.py:632
 msgid "Saving rejected (wrong file type)"
 msgstr "Speichern verweigert (falscher Dateityp)"
 
-#: manifestDBview.py:692
+#: manifestDBview.py:669
 msgid "Select domain first (no rows in model)"
 msgstr "Erst Domain wählen (keine Reihen im Modell)"
 
-#: manifestDBview.py:694
+#: manifestDBview.py:671
 msgid "Please choose a folder for extracting files"
 msgstr "Verzeichnis zum Extrahieren der Dateien angeben "
 
-#: manifestDBview.py:697
+#: manifestDBview.py:674
 msgid "No path for extracting files given, try again"
 msgstr "Pfad zum Extrahieren der Dateien nochmals angeben"
 
-#: manifestDBview.py:701
+#: manifestDBview.py:678
 msgid "Output directory is not empty!"
 msgstr "Ausgabeverzeichnis ist nicht leer!"
 
-#: manifestDBview.py:705
+#: manifestDBview.py:682
 msgid "Path to extract files: {self.extract_path}"
-msgstr "Pfad für extrahierte Dateien: {extract_path}"
+msgstr "Pfad für extrahierte Dateien: {self.extract_path}"
 
-#: manifestDBview.py:732
-msgid "{len(self.files)} files extracted to: {self.extract_path}"
-msgstr "{files} Dateien extrahiert nach: {extract_path}"
-
-#: manifestDBview.py:735
+#: manifestDBview.py:710
 msgid "Nothing extracted (no regular files in domain)"
 msgstr "Nichts extrahiert (keine reguläre Datei in Domain)"
 
-#: manifestDBview.py:758
+#: manifestDBview.py:733
 msgid "Please choose a folder for exporting Manifest.csv"
 msgstr "Verzeichnis zum Export von Manifest.csv auswählen"
 
-#: manifestDBview.py:761
+#: manifestDBview.py:736
 msgid "No path for CSV file given, try again"
 msgstr "Keine Pfadangabe gemacht, neuer Versuch"
 
-#: manifestDBview.py:771
+#: manifestDBview.py:746
 msgid "Manifest.csv stored in folder {export_path}"
 msgstr "Manifest.csv im Verzeichnis {export_path} gespeichert"

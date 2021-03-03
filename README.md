@@ -9,7 +9,8 @@ While working under Fedora Linux I am arriving now from  C++ to Python as the pr
 Since Python is an interpretative language you simply start the program in command line by executing
 
 ```
-python3 manifestDVview.py
+chmod +x manifestDVview.py
+./manifestDVview.py
 ```
 In the moment exists no localization (on the TO-DO-list).
 
@@ -41,10 +42,10 @@ Use the program for extracting of backup'd files which could not be recovered ot
 ### Usage:
 - Click on "Open" left in the toolbar above to open an appropiate data base file. The Backup is structured in so-called domains.
 - Down right there is now appearing a button "Export CSV...". Clicking will export the data base structure to an ',' separated CSV file, which can be read in a text editor or calculation program of your choice.
-- Normally exist in the same directory two files 'Manifest.plist' and 'Status.plist" which will be displayed by the related Buttons located left and in the middle, otherwise they are invisible.
+- Normally exist in the same directory two files 'Manifest.plist' and 'Status.plist" which will be displayed by clicking the related buttons located left and in the middle, otherwise they are inactive.
 -  Choosing a domain from the appearing Combobox will display further components of this domain. Double-clicking a row in the table opens a dialog where you can select the place for storing the requested file.
 - If you know which domain you are looking for, enter in the entry field of the Combobox a significant segment for the name and press key 'Enter'. The first entry which will match is then selected. So typing in 'CameraRoll' will fetch the CameraRollDomain, where you find your stored images.
-- Clicking the "Extract Domain..." button will export the whole domain into a directory of your choice (but makes sense only if files are present, of course). The progress is shown in a dialog window with a progressbar.
+- Clicking the "Extract Domain..." button will export the whole domain into a directory of your choice (but makes sense only if files are present, of course). The progress is shown in a separate dialog window.
 - Quit the program with "Quit" or by closing the application window.
 
 ### Acknowledgements:

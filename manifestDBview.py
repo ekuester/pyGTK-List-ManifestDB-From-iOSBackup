@@ -98,13 +98,14 @@ class InfoDialog(Gtk.Dialog):
         self.show_all()
 
 class ProgressThread(threading.Thread):
-    def __init__(self, queue, files, extract_path):
+    def __init__(self, queue, grand_parent):
         threading.Thread.__init__(self)
-        self._extract_path = extract_path
-        self._files = files
+        self._extract_path = grand_parent.extract_path
+        self._files = grand_parent.files
         self._queue = queue
 
     def run(self):
+        file_count = 0
         subtotal = 0
         for file in self._files:
             file_url = file['fileURL']
@@ -112,50 +113,47 @@ class ProgressThread(threading.Thread):
             target_dirs = os.path.dirname(target_url)
             os.makedirs(target_dirs, exist_ok=True, mode=0o750)
             try:
-                with open(file_url, 'rb') as fo, open(target_url, 'wb') as fw:
+                with open(file_url, 'rb') as fr, open(target_url, 'wb') as fw:
                     while True:
-                        chunk = fo.read(1024)
+                        chunk = fr.read(1024)
                         if chunk: 
                             fw.write(chunk)
                         else:
                             break
             except EnvironmentError:
-                # ERROR in thread, Status message so not possible !!!!
-                self.context_id = self.status_bar.push(self.context_id,\
-                    _("An error occurred while copying"))
+                display.context_id = display.status_bar.push(display.context_id,\
+                    _('An error occurred while copying, good luck!'))
             finally:
+                file_count += 1
                 subtotal += file['fileSize']
                 self._queue.put(subtotal)
+        display.context_id = display.status_bar.push(display.context_id,\
+            f(_('{file_count} files extracted to: {self._extract_path}')))
+
 
 class ProgressbarDialog(Gtk.Dialog):
     def __init__(self, parent):
         Gtk.Dialog.__init__(self, title=_("Filetransfer"), transient_for=parent, flags=0)  
         self.move(272, 64)
         self.set_modal(True)
-
         self.add_button(Gtk.STOCK_CLOSE, Gtk.ResponseType.CLOSE)
         self.set_default_size(216, 64)
         self.set_border_width(8)
         self.connect("response", self._on_response)
-
         label = Gtk.Label(label=_("Copying Files ..."))
         self.progressbar = Gtk.ProgressBar(show_text=True)
-
         box = self.get_content_area()
         box.add(label)
         box.add(self.progressbar)
         self.show_all()
-
-        # max and current number of bytes copied
-        self.total = parent.total
-
+        # total number of bytes to copy
+        self._total = parent.total
         # queue to share data between threads
         self._queue = queue.Queue()
-
-        # install timer event to check the queue every 200 msec for new data from the thread
-        GLib.timeout_add(interval=200, function=self._on_timer)
+        # install timer event to check the queue every interval for new data from the thread
+        GLib.timeout_add(interval=20, function=self._on_timer)
         # start the thread
-        self._thread = ProgressThread(self._queue, parent.files, parent.extract_path)
+        self._thread = ProgressThread(self._queue, parent)
         self._thread.daemon = True
         self._thread.start()
 
@@ -169,18 +167,16 @@ class ProgressbarDialog(Gtk.Dialog):
             # read data from the thread
             subtotal = self._queue.get()
             # update the progressbar
-            self.progressbar.set_fraction(subtotal / self.total)
+            self.progressbar.set_fraction(subtotal / self._total)
         # keep the timer alive
         return True
 
     def _on_response(self, dialog, response_id):
-        print("response_id is", response_id)
         dialog.destroy()
 
 class ManifestDBWindow(Gtk.Window):
     def __init__(self):
         Gtk.Window.__init__(self, title="Gtk+: iOS Backup - Read Manifest.db")
-
         self.set_border_width(8)
         self.set_default_size(1024, 768);
         loader = GdkPixbuf.PixbufLoader()
@@ -188,26 +184,21 @@ class ManifestDBWindow(Gtk.Window):
         loader.close()
         pixbuf = loader.get_pixbuf()
         self.set_icon(pixbuf)
-
         # vertical box to hold the widgets
         self.vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
-       
         # a toolbar created in the method create_toolbar (see below)
         toolbar = self.create_toolbar()
         # with extra horizontal space
         toolbar.set_hexpand(True)
         # show the toolbar
         toolbar.show()
-
         # add the toolbar to the vertical box
         self.vbox.pack_start(toolbar, False, True, 0)
-
         label = Gtk.Label()
         label.set_markup("<span face=\"mono\" weight=\"bold\">iOSBackup </span>")
         self.label_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.label_box.pack_start(label, True, True, 0)
         self.vbox.pack_start(self.label_box, True, True, 0)
-
         # some needed stuff
         self.first_run = True
         self.backup_path = str()
@@ -217,7 +208,6 @@ class ManifestDBWindow(Gtk.Window):
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         self.dialog_label = Gtk.Label()
         self.dialog_label.set_justify(Gtk.Justification.LEFT)
-
         # create combobox with entry
         listmodel = Gtk.ListStore(str, int)
         self.combo = Gtk.ComboBox.new_with_model_and_entry(model=listmodel)
@@ -274,7 +264,6 @@ class ManifestDBWindow(Gtk.Window):
         text_buffer = Gtk.TextBuffer.new()
         text_view = Gtk.TextView()
         text_view.set_buffer(text_buffer);
-
         # add the TextView, inside a ScrolledWindow under the tableview
         text_window = Gtk.ScrolledWindow()
         text_window.set_size_request(-1, 60)
@@ -288,7 +277,6 @@ class ManifestDBWindow(Gtk.Window):
         self.status_frame.add(self.status_bar)
         self.vbox.pack_end(self.status_frame, False, True, 0)
         self.context_id = self.status_bar.push(0, _("Choose a Database, click Open"))
-
         self.add(self.vbox)
         self.show_all()
 
@@ -309,7 +297,6 @@ class ManifestDBWindow(Gtk.Window):
         open_button.show()
         # set the name of the action associated with the button.
         open_button.connect("clicked", self.on_open_clicked)
-
         # create a button for the "quit" action, with a stock image
         quitIcon = Gtk.Image.new_from_icon_name("application-exit", Gtk.IconSize.LARGE_TOOLBAR)
         quit_button = Gtk.ToolButton.new(quitIcon, _("Quit"))
@@ -320,12 +307,10 @@ class ManifestDBWindow(Gtk.Window):
         quit_button.show()
         # set the name of the action associated with the button.
         quit_button.connect("clicked", self.on_quit_clicked)
-
         # create horizontal space
         toolitem_space = Gtk.SeparatorToolItem()
         toolitem_space.set_expand(True)
         toolbar.insert(toolitem_space, 3)
-
         # create a button for the "about" action, with a stock image
         aboutIcon = Gtk.Image.new_from_icon_name("help-about", Gtk.IconSize.LARGE_TOOLBAR)
         about_button = Gtk.ToolButton.new(aboutIcon, _("About"))
@@ -366,9 +351,7 @@ class ManifestDBWindow(Gtk.Window):
             Gtk.STOCK_OPEN,
             Gtk.ResponseType.OK,
         )
-
         self.add_filters(dialog)
-
         response = dialog.run()
         if response == Gtk.ResponseType.OK:
             filename = dialog.get_filename()
@@ -416,7 +399,6 @@ class ManifestDBWindow(Gtk.Window):
             # truncate list to first tuple
             del self.names[1:]
             cursor.close()
-
         except sqlite3.Error as error:
             self.context_id = self.status_bar.push(self.context_id,\
                 _("Error while connecting to sqlite"))
@@ -425,7 +407,6 @@ class ManifestDBWindow(Gtk.Window):
                 sqliteConnection.close()
                 self.context_id = self.status_bar.push(self.context_id,\
                     _("The SQLite connection is closed after reading"))
-
         listmodel = self.combo.get_model()
         treemodel = self.treeview.get_model()
         if (len(self.naked_domains)):
@@ -451,9 +432,7 @@ class ManifestDBWindow(Gtk.Window):
             listmodel.append([naked_domain, index])
         self.context_id = self.status_bar.push(self.context_id,\
             f(_('Combobox filled with {index} domain names, please select one')))
-
         self.remove(self.vbox)
-
         if (self.first_run):
             # prepare scrolled window
             self.scrolled_window.add(self.treeview)
@@ -466,26 +445,23 @@ class ManifestDBWindow(Gtk.Window):
             self.vbox.pack_start(self.label_box, True, True, 0)
             # generate horizontal box at bottom for manifest, status, export
             self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-            if (self.manifest is not None):
-                manifest_button = Gtk.Button.new_with_label("Manifest.plist")
-                manifest_button.connect("clicked", self.on_manifest_show_clicked, True)
-                manifest_button.show()
-                self.bottom_box.pack_start(manifest_button, False, True, 0)
-                
-            if (self.status is not None):
-                status_button = Gtk.Button.new_with_label("Status.plist")
-                status_button.connect("clicked", self.on_status_show_clicked, True)
-                status_button.show()
-                self.bottom_box.pack_start(status_button, True, False, 0)
+            self.bottom_box.set_border_width(0)
+            # prepare button for Manifest.plist
+            self.manifest_button = Gtk.Button.new_with_label("Manifest.plist")
+            self.manifest_button.connect("clicked", self.on_manifest_show_clicked, True)
+            self.bottom_box.pack_start(self.manifest_button, False, True, 0)
+            # prepare button for Status.plist
+            self.status_button = Gtk.Button.new_with_label("Status.plist")
+            self.status_button.connect("clicked", self.on_status_show_clicked, True)
+            self.bottom_box.pack_start(self.status_button, True, False, 0)
             export_button = Gtk.Button.new_with_label(_("Export CSV..."))
             export_button.connect("clicked", self.on_export_csv_clicked)
-            export_button.show()
             self.bottom_box.pack_end(export_button, False, True, 0)
-            self.bottom_box.set_border_width(0)
             self.bottom_box.pack_end(export_button, True, True, 0)
             self.vbox.pack_start(self.bottom_box, False, True, 0)
             self.first_run = False
-            
+        self.manifest_button.set_sensitive(self.manifest is not None)
+        self.status_button.set_sensitive(self.status is not None)
         self.add(self.vbox)
         self.show_all()
 
@@ -497,7 +473,7 @@ class ManifestDBWindow(Gtk.Window):
         about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
         about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
         about.set_size_request(480, -1)
-        about.set_version("Version 1.1.10")
+        about.set_version("Version 1.1.11")
         about.set_authors(_("Erich Küster, Krefeld/Germany\n"))
         about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
         with open("COMMENTS","r") as f:
@@ -638,16 +614,16 @@ class ManifestDBWindow(Gtk.Window):
                     return
                 target_url = os.path.join(target_path,target)
                 try:
-                    with open(file_url, 'rb') as fo, open(target_url, 'wb') as fw:
+                    with open(file_url, 'rb') as fr, open(target_url, 'wb') as fw:
                         while True:
-                            chunk = fo.read(1024)
+                            chunk = fr.read(1024)
                             if chunk: 
                                 fw.write(chunk)
                             else:
                                 break
                 except EnvironmentError:
                     self.context_id = self.status_bar.push(self.context_id,\
-                        _('Error during copying, good luck!'))
+                        _('An error occurred while copying, good luck!'))
                 finally:
                     self.context_id = self.status_bar.push(self.context_id,\
                         f(_('Copying to {target_url} complete, no errors')))
@@ -729,8 +705,6 @@ class ManifestDBWindow(Gtk.Window):
         if self.total > 0:
             # generate progressbar dialog
             progressbar_dialog = ProgressbarDialog(self)
-            self.context_id = self.status_bar.push(self.context_id,\
-               f(_('{len(self.files)} files extracted to: {self.extract_path}')))
         else:
             self.context_id = self.status_bar.push(self.context_id,\
                _('Nothing extracted (no regular files in domain)'))
@@ -779,8 +753,8 @@ de = gettext.translation('ManifestDBView', localedir='locale', languages=['de'])
 de.install()
 # define _ shortcut for translations
 _ = de.gettext # German
-win = ManifestDBWindow()
-win.connect("destroy", Gtk.main_quit)
-win.show_all()
+display = ManifestDBWindow()
+display.connect("destroy", Gtk.main_quit)
+display.show_all()
 Gtk.main()
 
