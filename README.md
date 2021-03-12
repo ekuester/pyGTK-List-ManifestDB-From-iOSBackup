@@ -12,7 +12,7 @@ Since Python is an interpretative language you simply start the program in comma
 chmod +x manifestDVview.py
 ./manifestDVview.py
 ```
-In the moment exists no localization (on the TO-DO-list).
+In the moment exists a german localization (more on the TO-DO-list).
 
 The program follows the design of the earlier programs List-ManifestDB-From-iOSBackup written in Swift and GTK-List-ManifestDB-from iOSBackup written in C++ (published in my repository).
 
