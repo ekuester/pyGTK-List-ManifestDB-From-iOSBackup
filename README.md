@@ -33,7 +33,7 @@ CREATE INDEX FilesFlagsIdx ON Files(flags);
 CREATE TABLE Properties (key TEXT PRIMARY KEY, value BLOB);
 .quit
 ```
-Access to SQLite under Python proved to be much more easier than with C++ ... [1]]
+Access to SQLite under Python proved to be much more easier than with C++ ... [1]
 
 The same conclusion is valid for reading of BLOBs (binary large objects).
 
