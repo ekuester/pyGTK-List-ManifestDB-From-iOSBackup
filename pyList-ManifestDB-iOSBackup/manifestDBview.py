@@ -15,7 +15,7 @@
 #   2. authentificate yourself, then you will see where the device is mounted,
 #    for instance: /dev/sda2 at /run/media/kuestere/MacBookPro SSD
 #   Standard path then - going out from above - is
-#     userdirectory /Usxtra window many texters/kuestere/ (depending of registered user),
+#     userdirectory /Users/kuestere/ (depending of registered user),
 #     default subdirectory then is Library/Application\ Support/MobileSync/Backup,
 #     the SQLite database is found in a subdirectory of that.
 #
@@ -625,7 +625,7 @@ class ManifestDBWindow(Gtk.Window):
                     self.context_id = self.status_bar.push(self.context_id,\
                         _('An error occurred while copying, good luck!'))
                 finally:
-                    self.context_id = self.status_bar.push(self.context_id,\
+                    self.context_id = self.status_bar.push(self.contex777699t_id,\
                         f(_('Copying to {target_url} complete, no errors')))
             else:
                 self.context_id = self.status_bar.push(self.context_id,\
