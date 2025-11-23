@@ -10,7 +10,8 @@
 #    different method for a backup ).
 #   The main information is stored in a SQLite database named Manifest.db .
 #   To access the database from Linux
-#   1. mount the device where macOS is installed
+#   A. Backup was done under MacOS (ignore if you are using APFS):
+#   1. mount the device where macOS is installed 
 #    $ udisksctl mount --block-device /dev/sda2
 #   2. authentificate yourself, then you will see where the device is mounted,
 #    for instance: /dev/sda2 at /run/media/kuestere/MacBookPro SSD
@@ -18,6 +19,13 @@
 #     userdirectory /Users/kuestere/ (depending of registered user),
 #     default subdirectory then is Library/Application\ Support/MobileSync/Backup,
 #     the SQLite database is found in a subdirectory of that.
+#   B. Backup was done under Windows (recommended):
+#   1. mount the device where Microsoft Windows (actual Version 11) is installed,
+#   2. look for the Users folder,
+#   3. the relevant folder consists out of a sequence of numbers
+#     situated in .../AppData/Roaming/Apple Computer/MobileSync/Backup
+#   4. copy the backup folder over into linux system e.g. into ./Downloads
+#     This is IMPORTANT, otherwise Windows refuses reading of the data base.
 #
 #  Use the program for extracting of stored files which could not be recovered otherwise.
 #           Created by Erich Küster first on October 3, 2016
@@ -27,7 +35,8 @@
 #  The old code (in Swift, now abandoned) was rewritten as of July 25, 2018
 #     now in C++ with the GTK+ wrapper gtkmm, last changes January 2021
 #       to use plistlib rewritten for GTK3 Python on February 8, 2021
-#         Copyright © 2016-2021 Erich Küster. All rights reserved.
+#                  last changes Sun, November 23, 2025
+#         Copyright © 2016-2025 Erich Küster. All rights reserved.
 
 import csv, os, queue, re, sqlite3, sys, threading
 
@@ -41,6 +50,9 @@ import plistlib as _plistlib
 from datetime import datetime
 from inspect import currentframe
 from time import sleep
+
+# local modules
+import toolbar
 
 svg = """
 <svg id="svg154" width="256" height="256" version="1.1" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg" xmlns:cc="http://creativecommons.org/ns#" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#" xmlns:xlink="http://www.w3.org/1999/xlink">
@@ -69,12 +81,23 @@ svg = """
  <path id="path849" transform="matrix(2 0 0 2 .14531 .14531)" d="m117.14 6.8613c1.8003 2.5889 2.8613 5.7328 2.8613 9.1387v88c0 8.864-7.136 16-16 16h-88c-3.4059 0-6.5498-1.061-9.1387-2.8613 2.8851 4.1488 7.6806 6.8613 13.139 6.8613h88c8.864 0 16-7.136 16-16v-88c0-5.4581-2.7126-10.254-6.8613-13.139z" filter="url(#filter854)" opacity=".36"/>
 </svg>"""
 
-##############################
-# use f-strings with gettext #
-##############################
-def  f(s):
-    frame = currentframe().f_back
-    return eval(f"f'{s}'", frame.f_locals, frame.f_globals)
+###########
+#   CSS   #
+###########
+screen = Gdk.Screen.get_default()
+provider = Gtk.CssProvider()
+
+style_context = Gtk.StyleContext()
+style_context.add_provider_for_screen(screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+
+# for color schemes see <https://graphviz.org/doc/info/colors.html>
+# use prefix `b` or `.encode()` to create `bytes`
+css = b"""
+#nice-entry {color: yellow; background: darkolivegreen; font-weight: bold} 
+#red-button {background: #fdd}
+"""
+
+provider.load_from_data(css)
 
 ###########
 # classes #
@@ -121,19 +144,19 @@ class ProgressThread(threading.Thread):
                         else:
                             break
             except EnvironmentError:
-                display.context_id = display.status_bar.push(display.context_id,\
+                self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                     _('An error occurred while copying, good luck!'))
             finally:
                 file_count += 1
                 subtotal += file['fileSize']
                 self._queue.put(subtotal)
-        display.context_id = display.status_bar.push(display.context_id,\
-            f(_('{file_count} files extracted to: {self._extract_path}')))
+        self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+            _('{} files extracted to: {}').format(file_count, self._extract_path))
 
 
 class ProgressbarDialog(Gtk.Dialog):
     def __init__(self, parent):
-        Gtk.Dialog.__init__(self, title=_("Filetransfer"), transient_for=parent, flags=0)  
+        Gtk.Dialog.__init__(self, title=_("Filetransfer"), transient_for=parent.window, flags=0)  
         self.move(272, 64)
         self.set_modal(True)
         self.add_button(Gtk.STOCK_CLOSE, Gtk.ResponseType.CLOSE)
@@ -174,11 +197,12 @@ class ProgressbarDialog(Gtk.Dialog):
     def _on_response(self, dialog, response_id):
         dialog.destroy()
 
-class ManifestDBWindow(Gtk.Window):
-    def __init__(self):
-        Gtk.Window.__init__(self, title="Gtk+: iOS Backup - Read Manifest.db")
+class Window(Gtk.ApplicationWindow):
+    def __init__(self, app):
+        super(Window, self).__init__(title=_('Gtk+: iOS Backup - Read Manifest.db'),\
+    application=app)
         self.set_border_width(8)
-        self.set_default_size(1024, 768);
+        self.set_default_size(800, 600);
         loader = GdkPixbuf.PixbufLoader()
         loader.write(svg.encode())
         loader.close()
@@ -186,21 +210,22 @@ class ManifestDBWindow(Gtk.Window):
         self.set_icon(pixbuf)
         # vertical box to hold the widgets
         self.vbox = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+
         # a toolbar created in the method create_toolbar (see below)
-        toolbar = self.create_toolbar()
-        # with extra horizontal space
-        toolbar.set_hexpand(True)
-        # show the toolbar
-        toolbar.show()
+        _toolbar = toolbar.create(self)
         # add the toolbar to the vertical box
-        self.vbox.pack_start(toolbar, False, True, 0)
+        self.vbox.pack_start(_toolbar, False, True, 0)
         label = Gtk.Label()
         label.set_markup("<span face=\"mono\" weight=\"bold\">iOSBackup </span>")
         self.label_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.label_box.pack_start(label, True, True, 0)
         self.vbox.pack_start(self.label_box, True, True, 0)
+
         # some needed stuff
         self.first_run = True
+        settings = Gtk.Settings.get_default()
+        theme_name = settings.get_property("gtk-theme-name")
+        self.is_dark = "dark" in theme_name.lower()
         self.backup_path = str()
         # records of 'naked' domains
         self.naked_domains = []
@@ -208,6 +233,7 @@ class ManifestDBWindow(Gtk.Window):
         self.clipboard = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
         self.dialog_label = Gtk.Label()
         self.dialog_label.set_justify(Gtk.Justification.LEFT)
+
         # create combobox with entry
         listmodel = Gtk.ListStore(str, int)
         self.combo = Gtk.ComboBox.new_with_model_and_entry(model=listmodel)
@@ -217,19 +243,21 @@ class ManifestDBWindow(Gtk.Window):
         self.combo.add_attribute(renderer_text, "text", 1)
         # active row at the beginning is undefined
         self.combo.set_active(-1)
-        self.combo.connect("changed", self.on_combo_changed)
+        self.combo.connect("changed", app.on_combo_changed)
         self.combo.set_entry_text_column(0)
         entry = self.combo.get_child()
+        entry.set_name('nice-entry')
+        placeholder = _("Please select domain to display")
+        entry.set_text(placeholder)
         # handles Enter pressed
-        entry.connect("activate", self.on_entry_activate)
-        entry.set_placeholder_text(_("Please select domain to display"))
+        entry.connect("activate", app.on_entry_activate)
         # button extract domain
         domain_button = Gtk.Button.new_with_label(_("Extract Domain..."))
         domain_button.set_tooltip_text(_("Extract domain content"))
         # label is shown
         domain_button.show()
         # set the name of the action associated with the button.
-        domain_button.connect("clicked", self.on_extract_domain_clicked)
+        domain_button.connect("clicked", app.on_extract_domain_clicked)
         # combination of combobox and button
         self.domain_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.domain_box.pack_start(self.combo, True, True, 0)
@@ -238,27 +266,28 @@ class ManifestDBWindow(Gtk.Window):
         self.scrolled_window = Gtk.ScrolledWindow()
         self.scrolled_window.set_size_request(-1, 384)
         self.scrolled_window.set_border_width(0)
-        # there is always the scrollbar (otherwise: ALWAYS NEVER)
+        # options for the scrollbars (ALWAYS, AUTOMATIC, NEVER)
         self.scrolled_window.set_policy(\
             Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
         # model creation for the treeview
         treemodel = Gtk.ListStore( str, str, 'glong')
         # create TreeView
         self.treeview = Gtk.TreeView(model=treemodel)
-        # treeview column headers
-        rendererText = Gtk.CellRendererText()
-        treeview_cols = ['fileID', 'relativePath', 'flags']
-        for num, name in enumerate(treeview_cols):
-            column_name = Gtk.TreeViewColumn(name ,rendererText, text=num)
-            self.treeview.append_column(column_name)
-        # make all the columns reorderable and resizable
-        # this is not necessary, but it's nice to show the feature
-        for column in self.treeview.get_columns():
+        treeview_columns = ['fileID', 'relativePath', 'flags']
+        for col_num, name in enumerate(treeview_columns):
+            # align text in column cells of row (0.0 left, 0.5 center, 1.0 right)
+            rendererText = Gtk.CellRendererText(xalign=0.0, editable=False)
+            column = Gtk.TreeViewColumn(name ,rendererText, text=col_num)
+            column.set_cell_data_func(rendererText, self.celldatafunction, func_data=col_num)
+            # center the column titles in first row
+            column.set_alignment(0.5)
+            # make all the column reorderable, resizable and sortable
+            column.set_sort_column_id(col_num)
             column.set_reorderable(True)
             column.set_resizable(True)
-            column.set_alignment(0.7)
+            self.treeview.append_column(column)
         # Connect signal handler
-        self.treeview.connect("row_activated", self.on_row_activated)
+        self.treeview.connect("row_activated", app.on_row_activated)
         '''
         # create the Text Buffer
         text_buffer = Gtk.TextBuffer.new()
@@ -270,60 +299,50 @@ class ManifestDBWindow(Gtk.Window):
         text_window.add(text_view);
         # only show the scrollbars when they are necessary:
         text_window.set_policy(\
-            Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC) '''
-
+            Gtk.PolicyType.AUTOMATIC, Gtk.PolicyType.AUTOMATIC)
+'''
         self.status_frame = Gtk.Frame()
         self.status_bar = Gtk.Statusbar()
         self.status_frame.add(self.status_bar)
         self.vbox.pack_end(self.status_frame, False, True, 0)
         self.context_id = self.status_bar.push(0, _("Choose a Database, click Open"))
         self.add(self.vbox)
-        self.show_all()
 
-    # method to create the toolbar
-    def create_toolbar(self):
-        # a toolbar
-        toolbar = Gtk.Toolbar()
-        # which is the primary toolbar of the application
-        toolbar.get_style_context().add_class(Gtk.STYLE_CLASS_PRIMARY_TOOLBAR)
-        # toolbar.set_toolbar_style(Gtk.TOOLBAR_BOTH);
-        # create a button for the "open" action, with a stock image
-        openIcon = Gtk.Image.new_from_icon_name("document-open", Gtk.IconSize.LARGE_TOOLBAR)
-        open_button = Gtk.ToolButton.new(openIcon, _("Open"))
-        open_button.set_tooltip_text(_("Open data base"))
-        # label is shown
-        open_button.set_is_important(True)
-        toolbar.insert(open_button, 1)
-        open_button.show()
-        # set the name of the action associated with the button.
-        open_button.connect("clicked", self.on_open_clicked)
-        # create a button for the "quit" action, with a stock image
-        quitIcon = Gtk.Image.new_from_icon_name("application-exit", Gtk.IconSize.LARGE_TOOLBAR)
-        quit_button = Gtk.ToolButton.new(quitIcon, _("Quit"))
-        quit_button.set_tooltip_text(_("Exit program"))
-        # label is shown
-        quit_button.set_is_important(True)
-        toolbar.insert(quit_button, 2)
-        quit_button.show()
-        # set the name of the action associated with the button.
-        quit_button.connect("clicked", self.on_quit_clicked)
-        # create horizontal space
-        toolitem_space = Gtk.SeparatorToolItem()
-        toolitem_space.set_expand(True)
-        toolbar.insert(toolitem_space, 3)
-        # create a button for the "about" action, with a stock image
-        aboutIcon = Gtk.Image.new_from_icon_name("help-about", Gtk.IconSize.LARGE_TOOLBAR)
-        about_button = Gtk.ToolButton.new(aboutIcon, _("About"))
-        about_button.set_tooltip_text(_("About program"))
-        # label is shown
-        about_button.set_is_important(True)
-        toolbar.insert(about_button, 4)
-        about_button.show()
-        # set the name of the action associated with the button.
-        #about_button.set_action_name("app.about")
-        about_button.connect("clicked", self.on_about_clicked)
-        # return the complete toolbar
-        return toolbar
+    def celldatafunction(self, column, cell, model, iter, func_data):
+        # column is provided, but not used
+        col_num = func_data
+        value = model.get(iter, col_num)[0]
+        if type(value) is int:
+            cell.set_property('text', f'{value:>8d}')
+        path = model.get_path(iter)
+        row = path[0]
+        # background color depends on theme
+        b_colors = []
+        if self.is_dark:
+            b_colors = ['darkolivegreen', 'black']
+        else:
+            b_colors = ['darkolivegreen', 'white']
+        cell.set_property('cell-background', b_colors[row % 2])
+
+class Application(Gtk.Application):
+    def __init__(self):
+        super(Application, self).__init__()
+
+    def do_activate(self):
+        self.window = Window(self)
+        self.window.show_all()
+
+    def do_startup(self):
+        Gtk.Application.do_startup(self)
+        action = Gio.SimpleAction.new("open", None)
+        action.connect("activate", self.on_open)
+        self.add_action(action)
+        action = Gio.SimpleAction.new("quit", None)
+        action.connect("activate", self.on_quit)
+        self.add_action(action)
+        action = Gio.SimpleAction.new("about", None)
+        action.connect("activate", self.on_about)
+        self.add_action(action)
 
     def add_filters(self, dialog):
         filter_db = Gtk.FileFilter()
@@ -343,7 +362,7 @@ class ManifestDBWindow(Gtk.Window):
 
     def choose_database_file(self):
         dialog = Gtk.FileChooserDialog(
-            title=_("Select Manifest.db file"), parent=self, action=Gtk.FileChooserAction.OPEN
+            title=_("Select Manifest.db file"), parent=self.window, action=Gtk.FileChooserAction.OPEN
         )
         dialog.add_buttons(
             Gtk.STOCK_CANCEL,
@@ -353,10 +372,9 @@ class ManifestDBWindow(Gtk.Window):
         )
         self.add_filters(dialog)
         response = dialog.run()
+        filename = None
         if response == Gtk.ResponseType.OK:
             filename = dialog.get_filename()
-        elif response == Gtk.ResponseType.CANCEL:
-            filename = None
         dialog.destroy()
         return filename
 
@@ -366,19 +384,17 @@ class ManifestDBWindow(Gtk.Window):
                 s = _plistlib.load(f)
             keys = sorted(s.keys())
             vals = [s[k] for k in keys]
-            xml = dict(zip(keys, vals))
+            return dict(zip(keys, vals))
         except EnvironmentError:
-            xml = None
-        finally:
-            return xml
-
-    def on_open_clicked(self, open_button):
-        if (self.first_run is False):
-            self.context_id = self.status_bar.push(self.context_id,\
+            return None
+ 
+    def on_open(self, action, parameter):
+        if (self.window.first_run is False):
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _("Go on to open a new Database"))
         backup_url = self.choose_database_file()
         if (backup_url is None):
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _("No Database chosen, try again"))
             return
         self.backup_path = os.path.dirname(backup_url)
@@ -386,10 +402,11 @@ class ManifestDBWindow(Gtk.Window):
         self.manifest = self.read_binary_plist(manifest_file)
         status_file = os.path.join(self.backup_path,'Status.plist')
         self.status = self.read_binary_plist(status_file)
+
         try:
             sqliteConnection = sqlite3.connect(backup_url)
             cursor = sqliteConnection.cursor()
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _("Database created and successfully connected to SQLite"))
             query = "SELECT * FROM Files"
             cursor.execute(query)
@@ -400,172 +417,112 @@ class ManifestDBWindow(Gtk.Window):
             del self.names[1:]
             cursor.close()
         except sqlite3.Error as error:
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _("Error while connecting to sqlite"))
         finally:
             if (sqliteConnection):
                 sqliteConnection.close()
-                self.context_id = self.status_bar.push(self.context_id,\
+                self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                     _("The SQLite connection is closed after reading"))
-        listmodel = self.combo.get_model()
-        treemodel = self.treeview.get_model()
-        if (len(self.naked_domains)):
-            del self.naked_domains[:]
+
+        listmodel = self.window.combo.get_model()
+        treemodel = self.window.treeview.get_model()
+        if (len(self.window.naked_domains)):
+            del self.window.naked_domains[:]
             # clear entry and models
-            self.combo.set_active(-1)
-            entry = self.combo.get_child()
-            entry.set_text(str())
-            entry.set_placeholder_text(_("Please select domain to display"))
+            self.window.combo.set_active(-1)
+            entry = self.window.combo.get_child()
+            placeholder = _("Please select domain to display")
+            entry.set_text(placeholder)
             listmodel.clear()
             treemodel.clear()
         # filter out "naked" domains where relativePath is empty
         for record in self.records:
             path = record[2]
             if (not path):
-                self.naked_domains.append(record[1])
+                self.window.naked_domains.append(record[1])
         # sort in ascending order
-        self.naked_domains.sort()
+        self.window.naked_domains.sort()
         # fill combobox listmodel
         index = 0
-        for naked_domain in self.naked_domains:
+        for naked_domain in self.window.naked_domains:
             index += 1
             listmodel.append([naked_domain, index])
-        self.context_id = self.status_bar.push(self.context_id,\
-            f(_('Combobox filled with {index} domain names, please select one')))
-        self.remove(self.vbox)
-        if (self.first_run):
+        self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+            _('Combobox filled with {} domain names, please select one').format(index))
+        self.window.remove(self.window.vbox)
+        if (self.window.first_run):
             # prepare scrolled window
-            self.scrolled_window.add(self.treeview)
-            self.scrolled_window.show()
+            self.window.scrolled_window.add(self.window.treeview)
+            self.window.scrolled_window.show()
             # add new widgets and reorder
-            self.vbox.remove(self.label_box)
+            self.window.vbox.remove(self.window.label_box)
             # add horizontal combobox
-            self.vbox.pack_start(self.domain_box, False, False, 0);
-            self.vbox.pack_start(self.scrolled_window, False, True, 0)
-            self.vbox.pack_start(self.label_box, True, True, 0)
+            self.window.vbox.pack_start(self.window.domain_box, False, False, 0);
+            self.window.vbox.pack_start(self.window.scrolled_window, False, True, 0)
+            self.window.vbox.pack_start(self.window.label_box, True, True, 0)
             # generate horizontal box at bottom for manifest, status, export
-            self.bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
-            self.bottom_box.set_border_width(0)
+            self.window.bottom_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            self.window.bottom_box.set_border_width(0)
             # prepare button for Manifest.plist
-            self.manifest_button = Gtk.Button.new_with_label("Manifest.plist")
-            self.manifest_button.connect("clicked", self.on_manifest_show_clicked, True)
-            self.bottom_box.pack_start(self.manifest_button, False, True, 0)
+            self.window.manifest_button = Gtk.Button.new_with_label("Manifest.plist")
+            self.window.manifest_button.connect("clicked", self.on_manifest_show_clicked, True)
+            self.window.bottom_box.pack_start(self.window.manifest_button, False, True, 0)
             # prepare button for Status.plist
-            self.status_button = Gtk.Button.new_with_label("Status.plist")
-            self.status_button.connect("clicked", self.on_status_show_clicked, True)
-            self.bottom_box.pack_start(self.status_button, True, False, 0)
+            self.window.status_button = Gtk.Button.new_with_label("Status.plist")
+            self.window.status_button.connect("clicked", self.on_status_show_clicked, True)
+            self.window.bottom_box.pack_start(self.window.status_button, True, False, 0)
             export_button = Gtk.Button.new_with_label(_("Export CSV..."))
-            export_button.connect("clicked", self.on_export_csv_clicked)
-            self.bottom_box.pack_end(export_button, False, True, 0)
-            self.bottom_box.pack_end(export_button, True, True, 0)
-            self.vbox.pack_start(self.bottom_box, False, True, 0)
-            self.first_run = False
-        self.manifest_button.set_sensitive(self.manifest is not None)
-        self.status_button.set_sensitive(self.status is not None)
-        self.add(self.vbox)
-        self.show_all()
-
-    def on_quit_clicked(self, quit_button):
-        self.destroy()
-
-    def on_about_clicked(self, widget):
-        about = Gtk.AboutDialog(transient_for=self)
-        about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
-        about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
-        about.set_size_request(480, -1)
-        about.set_version("Version 1.1.12")
-        about.set_authors(_("Erich Küster, Krefeld/Germany\n"))
-        about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
-        with open("COMMENTS","r") as f:
-            comments = f.read()
-        about.set_comments(comments)
-        with open("LICENSE","r") as f:
-            license = f.read()
-        about.set_license(license)
-        about.set_website("http://www.gtkmm.org");
-        about.set_website_label("gtkmm Website - C++ Interfaces for GTK+ and GNOME")
-        about.set_authors([_("Erich Küster, Krefeld/Germany")]);
-        response = about.run()
-        if response != Gtk.ResponseType.DELETE_EVENT:
-            print(_("Unknown button was clicked"))
-        about.destroy()
+            export_button.connect("clicked", self.on_export_csv)
+            self.window.bottom_box.pack_end(export_button, False, True, 0)
+            self.window.bottom_box.pack_end(export_button, True, True, 0)
+            self.window.vbox.pack_start(self.window.bottom_box, False, True, 0)
+            self.window.first_run = False
+        self.window.manifest_button.set_sensitive(self.manifest is not None)
+        self.window.status_button.set_sensitive(self.status is not None)
+        self.window.add(self.window.vbox)
+        self.window.show_all()
 
     def on_combo_changed(self, combo):
         tree_iter = combo.get_active_iter()
         if tree_iter is not None:
             model = combo.get_model()
             domain, row_id = model[tree_iter][:2]
-            treemodel = self.treeview.get_model()
+            treemodel = self.window.treeview.get_model()
             # delete data of an earlier run
-            if (len(self.domain_items) > 0):
-                del self.domain_items[:]
+            if (len(self.window.domain_items) > 0):
+                del self.window.domain_items[:]
                 # make place for new table rows
                 treemodel.clear()
             if (row_id > 0):
                 # remove vbox from main window
-                self.remove(self.vbox)
-                self.vbox.remove(self.bottom_box)
-                self.vbox.remove(self.label_box)
-                self.vbox.remove(self.scrolled_window)
-                ''' self.vbox.remove(self.text_window) '''
+                self.window.remove(self.window.vbox)
+                self.window.vbox.remove(self.window.bottom_box)
+                self.window.vbox.remove(self.window.label_box)
+                self.window.vbox.remove(self.window.scrolled_window)
+                ''' self.window.vbox.remove(self.window.text_window) '''
                 # filter out file info of the chosen domain
                 indices = [0, 2, 3, 4]
                 for record in self.records:
                     if (record[1] == domain):
                         selected_items = [record[index] for index in indices]
-                        self.domain_items.append(selected_items)
+                        self.window.domain_items.append(selected_items)
                         # do not append file BLOB
                         treemodel.append(selected_items[0:3])
-                self.context_id = self.status_bar.push(self.context_id,\
-                    f(_('Chosen domain: {domain}')))
-                self.vbox.pack_start(self.scrolled_window, False, True, 0)
+                self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                    _('Chosen domain: {}').format(domain))
+                self.window.vbox.pack_start(self.window.scrolled_window, False, True, 0)
                 ''' self.vbox.pack_end(self.text_window) '''
-                self.vbox.pack_start(self.label_box, True, True, 0)
-                self.vbox.pack_end(self.bottom_box, False, True, 0)
-                self.add(self.vbox)
-                self.show_all()
+                self.window.vbox.pack_start(self.window.label_box, True, True, 0)
+                self.window.vbox.pack_end(self.window.bottom_box, False, True, 0)
+                self.window.add(self.window.vbox)
+                self.window.show_all()
         else:
             entry = combo.get_child()
             # but ignore any input (Enter is treated by signal 'activate' (see below)
 
-    def on_entry_activate(self, entry):
-        # on 'Enter' look for first row with domain containing the actual entry text
-        self.context_id = self.status_bar.push(self.context_id,\
-            _("no match found for entry"))
-        search_term = entry.get_text()
-        model = self.combo.get_model()
-        first_match = 0
-        column = 0
-        for row in model:
-            naked_domain = row[0]
-            row_id = row[1]
-            if search_term in naked_domain:
-                # we do have a match
-                self.combo.set_active(row_id-1)
-                entry.set_text(naked_domain)
-                self.context_id = self.status_bar.push(self.context_id,\
-                    f(_('first match for entry is {naked_domain} at row {row_id}')))
-                break
-
-    def show_info_dialog(self, buffer):
-        lines = tuple(buffer)
-        report = "\n"
-        dialog = InfoDialog(self)
-        dialog.set_title(_("File Info Dialog"))
-        markup = report.join(lines)
-        self.dialog_label.set_markup(markup)
-        response = dialog.run()
-        dialog.destroy()
-        # convert markup back to normal text
-        if response == 100:
-            # copy to clipboard
-            text = re.sub('<[^<]+?>', '', markup)
-            self.clipboard.set_text(text, -1)
-            self.context_id = self.status_bar.push(self.context_id,\
-                _("File Info copied to Clipboard, use Strg-V to retrieve."))
-
     def on_row_activated(self, treeview, path, column):
-        model = self.treeview.get_model()
+        model = self.window.treeview.get_model()
         tree_iter = model.get_iter(path)
         row = path[0]
         if tree_iter:
@@ -575,7 +532,7 @@ class ManifestDBWindow(Gtk.Window):
             # flags 1 = RegularFile, 2 = Directory, 3 = Symlink
             flags = model.get_value(tree_iter, 2)
             # first have a look at the file BLOB
-            domain_item = self.domain_items[row]
+            domain_item = self.window.domain_items[row]
             file_blob = domain_item[3]
             properties = _plistlib.loads(file_blob)
             buffer = []
@@ -604,12 +561,12 @@ class ManifestDBWindow(Gtk.Window):
                 # get first two characters of file ID
                 file_hash = file_id[0:2]
                 file_url = os.path.join(self.backup_path, file_hash, file_id)
-                self.context_id = self.status_bar.push(self.context_id,\
-                    f(_("URL for backup'd file: {file_url}")))
+                self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                    _("URL for backup'd file: {}").format(file_url))
                 target_path = self.choose_folder_for_saving(\
                     _("Please choose a folder to copy file in"))
                 if (target_path is None):
-                    self.context_id = self.status_bar.push(self.context_id,\
+                    self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                         _("No path for target file given, try again"))
                     return
                 target_url = os.path.join(target_path,target)
@@ -622,14 +579,50 @@ class ManifestDBWindow(Gtk.Window):
                             else:
                                 break
                 except EnvironmentError:
-                    self.context_id = self.status_bar.push(self.context_id,\
+                    self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                         _('An error occurred while copying, good luck!'))
                 finally:
-                    self.context_id = self.status_bar.push(self.contex777699t_id,\
-                        f(_('Copying to {target_url} complete, no errors')))
+                    self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                        _('Copying to {} complete, no errors').format(target_url))
             else:
-                self.context_id = self.status_bar.push(self.context_id,\
-                    f(_('Saving rejected (wrong file type)')))
+                self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                    _('Saving rejected (wrong file type)'))
+
+    def on_entry_activate(self, entry):
+        # on 'Enter' look for first row with domain containing the actual entry text
+        self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+            _("no match found for entry"))
+        search_term = entry.get_text()
+        model = self.window.combo.get_model()
+        first_match = 0
+        column = 0
+        for row in model:
+            naked_domain = row[0]
+            row_id = row[1]
+            if search_term in naked_domain:
+                # we do have a match
+                self.window.combo.set_active(row_id-1)
+                entry.set_text(naked_domain)
+                self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                    _('first match for entry is {} at row {}').format(naked_domain, row_id))
+                break
+
+    def show_info_dialog(self, buffer):
+        lines = tuple(buffer)
+        report = "\n"
+        dialog = InfoDialog(self.window)
+        dialog.set_title(_("File Info Dialog"))
+        markup = report.join(lines)
+        self.window.dialog_label.set_markup(markup)
+        response = dialog.run()
+        dialog.destroy()
+        # convert markup back to normal text
+        if response == 100:
+            # copy to clipboard
+            text = re.sub('<[^<]+?>', '', markup)
+            self.window.clipboard.set_text(text, -1)
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                _("File Info copied to Clipboard, use Strg-V to retrieve."))
 
     def on_manifest_show_clicked(self, button, *header):
         buffer = []
@@ -643,7 +636,6 @@ class ManifestDBWindow(Gtk.Window):
                     buffer.append(f'<span face="mono">{key: <25} partially skipped </span>')
                     for subname, subval in val.items():
                         if isinstance(subval, dict):
-                            # print(f'subname: {subname}')
                             # skip the nested dicts
                             continue
                         buffer.append(f'<span face="mono">{subname: <25} {subval} </span>')
@@ -662,24 +654,60 @@ class ManifestDBWindow(Gtk.Window):
             buffer.append(f'<span face="mono">{key: <25} {val} </span>')
         self.show_info_dialog(buffer)
 
+    def choose_folder_for_saving(self, dialog_title):
+        dialog = Gtk.FileChooserDialog(
+            title=dialog_title,
+            parent=self.window,
+            action=Gtk.FileChooserAction.SELECT_FOLDER,
+        )
+        dialog.add_buttons(
+            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Select", Gtk.ResponseType.OK
+        )
+        dialog.set_default_size(800, 400)
+        # set default selection
+        folder = None
+        response = dialog.run()
+        dialog.hide()
+        if response == Gtk.ResponseType.OK:
+            folder = dialog.get_filename()
+        dialog.destroy()
+        return folder
+
+    def on_export_csv(self, widget):
+        # export data records into .csv file
+        export_path = self.choose_folder_for_saving(_("Please choose a folder for exporting Manifest.csv"))
+        if (export_path is None):
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                _("No path for CSV file given, try again"))
+            return
+        export_url = os.path.join(export_path,'Manifest.csv')
+        with open(export_url, 'w') as file:
+            csv_writer = csv.writer(file, lineterminator='\n')
+            for name in self.names:
+                csv_writer.writerow(name)
+            for record in self.records:
+                csv_writer.writerow(record)
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+                _('Manifest.csv stored in folder {}').format(export_path))
+
     def on_extract_domain_clicked(self, button):
-        model = self.treeview.get_model()
+        model = self.window.treeview.get_model()
         if len(model) == 0:
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _('Select domain first (no rows in model)'))
             return
         self.extract_path = self.choose_folder_for_saving(_("Please choose a folder for extracting files"))
         if (self.extract_path is None):
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _('No path for extracting files given, try again'))
             return
         elif len(os.listdir(self.extract_path)) != 0:
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                 _('Output directory is not empty!'))
             return
         # now we have a valid extract path
-        self.context_id = self.status_bar.push(self.context_id,\
-            f(_('Path to extract files: {self.extract_path}')))
+        self.window.context_id = self.window.status_bar.push(self.window.context_id,\
+            _('Path to extract files: {}').format(self.extract_path))
         while Gtk.events_pending ():
             Gtk.main_iteration ()
         self.files = list()
@@ -706,55 +734,40 @@ class ManifestDBWindow(Gtk.Window):
             # generate progressbar dialog
             progressbar_dialog = ProgressbarDialog(self)
         else:
-            self.context_id = self.status_bar.push(self.context_id,\
+            self.window.context_id = self.window.status_bar.push(self.window.context_id,\
                _('Nothing extracted (no regular files in domain)'))
 
-    def choose_folder_for_saving(self, dialog_title):
-        dialog = Gtk.FileChooserDialog(
-            title=dialog_title,
-            parent=self,
-            action=Gtk.FileChooserAction.SELECT_FOLDER,
-        )
-        dialog.add_buttons(
-            Gtk.STOCK_CANCEL, Gtk.ResponseType.CANCEL, "Select", Gtk.ResponseType.OK
-        )
-        dialog.set_default_size(800, 400)
-        # set default selection
-        folder = None
-        response = dialog.run()
-        dialog.hide()
-        if response == Gtk.ResponseType.OK:
-            folder = dialog.get_filename()
-        dialog.destroy()
-        return folder
+    def on_quit(self, action, parameter):
+        self.window.destroy()
 
-    def on_export_csv_clicked(self, widget):
-        # export data records into .csv file
-        export_path = self.choose_folder_for_saving(_("Please choose a folder for exporting Manifest.csv"))
-        if (export_path is None):
-            self.context_id = self.status_bar.push(self.context_id,\
-                _("No path for CSV file given, try again"))
-            return
-        export_url = os.path.join(export_path,'Manifest.csv')
-        with open(export_url, 'w') as f:
-            csv_writer = csv.writer(f, lineterminator='\n')
-            for name in self.names:
-                csv_writer.writerow(name)
-            for record in self.records:
-                csv_writer.writerow(record)
-            self.context_id = self.status_bar.push(self.context_id,\
-                f(_('Manifest.csv stored in folder {export_path}')))
-
-    def on_destroy(self, widget):
-        Gtk.main_quit()
+    def on_about(self, action, parameter):
+        about = Gtk.AboutDialog(transient_for=self.window, modal=True)
+        about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
+        about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
+        about.set_size_request(480, -1)
+        about.set_version("Version 1.1.13")
+        about.set_authors(_("Erich Küster, Krefeld/Germany\n"))
+        about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
+        with open("COMMENTS","r") as f:
+            comments = f.read()
+        about.set_comments(comments)
+        with open("LICENSE","r") as f:
+            license = f.read()
+        about.set_license(license)
+        about.set_website("http://www.gtkmm.org");
+        about.set_website_label("gtkmm Website - C++ Interfaces for GTK+ and GNOME")
+        about.set_authors([_("Erich Küster, Krefeld/Germany")]);
+        response = about.run()
+        if response != Gtk.ResponseType.DELETE_EVENT:
+            print(_("Unknown button was clicked"))
+        about.destroy()
 
 # available translations
 de = gettext.translation('ManifestDBView', localedir='locale', languages=['de'])
 de.install()
 # define _ shortcut for translations
 _ = de.gettext # German
-display = ManifestDBWindow()
-display.connect("destroy", Gtk.main_quit)
-display.show_all()
-Gtk.main()
+app = Application()
+exit = app.run(sys.argv)
+sys.exit(exit)
 

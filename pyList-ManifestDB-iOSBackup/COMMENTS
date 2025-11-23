@@ -11,4 +11,4 @@ The main information is stored in a SQLite database named Manifest.db .
       in C++ with the GTK+ wrapper gtkmm, at last January 2021
         anew rewritten in pyGTK to use modules like plistlib
 
-      Copyright © 2016-2021 Erich Küster. All rights reserved.
+      Copyright © 2016-2025 Erich Küster. All rights reserved.
