@@ -1,6 +1,0 @@
-include pyList-ManifestDB-iOSBackup/about.xpm
-include pyList-ManifestDB-iOSBackup/COMMENTS
-include pyList-ManifestDB-iOSBackup/LICENSE
-include pyList-ManifestDB-iOSBackup/locale/*/LC_MESSAGES/*.mo
-include VERSION
-

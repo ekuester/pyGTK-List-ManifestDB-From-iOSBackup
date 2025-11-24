@@ -745,9 +745,9 @@ class Application(Gtk.Application):
         about.set_logo(GdkPixbuf.Pixbuf.new_from_file("about.xpm"));
         about.set_program_name("Gtk+: iOS Backup - Read Manifest.db")
         about.set_size_request(480, -1)
-        about.set_version("Version 1.1.13")
+        about.set_version("Version 1.1.14")
         about.set_authors(_("Erich Küster, Krefeld/Germany\n"))
-        about.set_copyright("Copyright © 2018-2021 Erich Küster. All rights reserved.")
+        about.set_copyright("Copyright © 2018-2025 Erich Küster. All rights reserved.")
         with open("COMMENTS","r") as f:
             comments = f.read()
         about.set_comments(comments)

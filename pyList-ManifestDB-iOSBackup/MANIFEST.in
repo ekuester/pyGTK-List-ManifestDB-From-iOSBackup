@@ -1,0 +1,5 @@
+include about.xpm
+include COMMENTS
+include LICENSE
+include locale/*/LC_MESSAGES/*.mo
+
