@@ -28,7 +28,7 @@ The program follows the design of the earlier program written in Swift and after
 I wrote this program to become familiar with the Python language, especially the pyGTK for the GTK-API (which I was using with gtkmm wrapper earlier) and to get a feeling how to display multiple widgets on the screen. Take it as example for handling of windows, boxes, comboboxes, treeviews, textviews and more, but now in pyGTK. The final reason for choosing python was the wonderful module 'plistlib' for decoding binary plists (I found no simple solution for C or C++).
 
 ### Background:
-The file Manifest.mbdb describes no longer the backup files for iOS. Beginning with iTunes version 12.5 (or so) the main information for the files is stored in a SQLite database Manifest.db (iTunes as of macOS Sierra and higher is using this scheme in any case, BTW just as under Windows 10).
+The file Manifest.mbdb describes no longer the backup files for iOS. Beginning with iTunes version 12.5 (or so) the main information for the files is stored in a SQLite database Manifest.db (iTunes as of macOS Sierra and higher is using this scheme in any case, BTW just as under Windows 10 and higher).
 
 The structure of this database is as follows
 
@@ -45,14 +45,15 @@ CREATE TABLE Properties (key TEXT PRIMARY KEY, value BLOB);
 ```
 Access to SQLite under Python [2] proved to be much more easier than with C++ and the same conclusion is valid for reading of BLOBs (binary large objects).
 
-Use the program for extracting of backup'd files which could not be recovered otherwise.
+Use the program for extracting of backup'd files which could not be recovered otherwise, BUT hold in mind the</br>
+CAVEAT: Only unencrypted backups are accessible with this program.
 
 ### Usage:
 - Click on "Open" left in the toolbar above to open an appropiate data base file. The Backup is structured in so-called domains.
 - Down right there is now appearing a button "Export CSV...". Clicking will export the data base structure to an ',' separated CSV file, which can be read in a text editor or calculation program of your choice.
 - Normally exist in the same directory two files 'Manifest.plist' and 'Status.plist" which will be displayed by clicking the related buttons located left and in the middle, otherwise they are inactive. By clicking on 'Copy' the displayed content of the file is transferred to the clipboard.
 -  Choosing a domain from the appearing Combobox will display further components of this domain. Double-clicking a row in the table opens a dialog which describe the selected entry.
-- If you know which domain you are looking for, enter in the entry field of the Combobox a significant segment for the name and press key 'Enter'. The first entry which will match is then selected. So typing in 'CameraRoll' will fetch the CameraRollDomain, where you find your stored images.
+- If you know which domain you are looking for, enter in the entry field of the Combobox a significant segment for the name and press key 'Enter'. The first entry which will match is then selected. So typing in 'CameraRoll' will fetch the CameraRollDomain, where you find your stored images under 'Media/DCIM'.
 - Clicking the "Extract Domain..." button will export the whole domain into a directory of your choice (but makes sense only if files are present, of course). The progress is shown in a separate dialog window.
 - Quit the program with "Quit" or by closing the application window.
 
